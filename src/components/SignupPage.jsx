@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-const SignupPage = ({ handlers }) => {
+const SignupPage = ({ handlers, error }) => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -15,6 +15,13 @@ const SignupPage = ({ handlers }) => {
     return (
         <div className="max-w-md mx-auto bg-white p-8 rounded-lg shadow-md">
             <h2 className="text-2xl font-bold mb-6 text-center">Create an Account</h2>
+
+            {error && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
+                    {error}
+                </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                     <label className="block font-medium">Name</label>

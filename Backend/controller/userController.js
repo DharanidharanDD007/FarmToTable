@@ -39,6 +39,7 @@ const signup = async (req, res) => {
         res.status(500).json({ message: "Server error: " + err.message });
     }
 };
+
 const login = async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -53,37 +54,46 @@ const login = async (req, res) => {
             return res.status(400).json({ message: "Invalid credentials." });
         }
 
-            // Inside login controller
+        // Use _id consistently (Mongoose provides id as virtual, but _id is the actual field)
+        const userId = user._id.toString();
+
         const payload = {
             user: {
-                id: user.id,
+                id: userId,
+                _id: userId, // Include both for compatibility
                 role: user.role,
                 name: user.name,
-                location: user.farmDetails?.location || '' // or however you store it
+                location: user.farmDetails?.location || ''
             }
         };
 
-        // Correct way: Use await and get the secret from environment variables
         const token = jwt.sign(
             payload,
-            process.env.JWT_SECRET, // <-- Uses the secure key
-            { expiresIn: '1h' }
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' } // Increased from 1h to 24h for better UX
         );
-        
+
         res.status(200).json({
             message: "Logged in successfully",
-            token: token
+            token: token,
+            user: {
+                id: userId,
+                _id: userId, // Include both for compatibility
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                farmDetails: user.farmDetails
+            }
         });
 
     } catch (err) {
-        // Any error, including one from jwt.sign, will be caught here
         res.status(500).json({ message: "Server error: " + err.message });
     }
 };
+
 // Get all users with the role 'farmer'
 const getFarmers = async (req, res) => {
     try {
-        // Find users with role 'farmer' and exclude their password from the result
         const farmers = await User.find({ role: "farmer" }).select("-password");
         res.status(200).json(farmers);
     } catch (err) {
@@ -94,13 +104,11 @@ const getFarmers = async (req, res) => {
 // Get all users with the role 'customer'
 const getCustomers = async (req, res) => {
     try {
-        // Find users with role 'customer' and exclude their password
         const customers = await User.find({ role: "customer" }).select("-password");
         res.status(200).json(customers);
     } catch (err) {
         res.status(500).json({ message: "Server error: " + err.message });
     }
 };
-
 
 module.exports = { signup, login, getFarmers, getCustomers };

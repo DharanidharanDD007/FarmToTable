@@ -42,57 +42,76 @@ const FarmerDashboardPage = ({ user, products, handlers }) => {
             <div className="mt-8">
                 <h3 className="text-2xl font-semibold mb-4 border-b pb-2">Your Current Listings</h3>
                 <div className="space-y-4">
-                    {products.filter((p) => p.farmerId === user.id).length > 0 ? (
-                        products
-                            .filter((p) => p.farmerId === user.id)
-                            .map((p) => (
-                                <div
-                                    key={p.id}
-                                    className="flex justify-between items-center bg-gray-50 p-3 rounded-lg"
-                                >
-                                    <div>
-                                        <p className="font-bold">
-                                            {p.name}{" "}
-                                            <span className="font-normal text-gray-600">
-                                                ({p.stock} in stock)
-                                            </span>
-                                        </p>
-                                        <p className="text-sm text-gray-600">
-                                            ₹{p.price} / {p.unit}
-                                        </p>
+                    {(() => {
+                        const userId = user.id || user._id;
+                        return products.filter((p) => p.farmerId === userId).length > 0 ? (
+                            products
+                                .filter((p) => p.farmerId === userId)
+                                .map((p) => (
+                                    <div
+                                        key={p.id}
+                                        className="flex justify-between items-center bg-gray-50 p-3 rounded-lg"
+                                    >
+                                        <div>
+                                            <p className="font-bold">
+                                                {p.name}{" "}
+                                                <span className="font-normal text-gray-600">
+                                                    ({p.stock} in stock)
+                                                </span>
+                                            </p>
+                                            <p className="text-sm text-gray-600">
+                                                ₹{p.price} / {p.unit}
+                                            </p>
+                                        </div>
+                                        <div className="flex gap-4">
+                                            <button
+                                                onClick={() => handleEdit(p)}
+                                                className="text-blue-600 hover:text-blue-800"
+                                            >
+                                                <EditIcon />
+                                            </button>
+                                            <button
+                                                onClick={() => handlers.requestDeleteProduct(p.id)}
+                                                className="text-red-500 hover:text-red-700"
+                                            >
+                                                <TrashIcon />
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="flex gap-4">
-                                        <button
-                                            onClick={() => handleEdit(p)}
-                                            className="text-blue-600 hover:text-blue-800"
-                                        >
-                                            <EditIcon />
-                                        </button>
-                                        <button
-                                            onClick={() => handlers.requestDeleteProduct(p.id)}
-                                            className="text-red-500 hover:text-red-700"
-                                        >
-                                            <TrashIcon />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))
-                    ) : (
-                        <p className="text-gray-500">
-                            You have no products listed. Click 'Manage My Products' to add one!
-                        </p>
-                    )}
+                                ))
+                        ) : (
+                            <p className="text-gray-500">
+                                You have no products listed. Click 'Manage My Products' to add one!
+                            </p>
+                        );
+                    })()}
                 </div>
             </div>
 
-            {isFormVisible && (
-                <ProductFormModal
-                    product={editingProduct}
-                    handlers={handlers}
-                    onClose={() => setFormVisible(false)}
-                />
-            )}
-        </div>
+
+            {/* Recipe Generator for Farmer */}
+            <div className="mt-8 border-t pt-6">
+                <button
+                    onClick={async () => {
+                        const result = await handlers.generateRecipe();
+                        if (result) alert("Recipe Idea:\n" + result);
+                    }}
+                    className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white py-3 px-8 rounded-lg font-semibold hover:bg-purple-700"
+                >
+                    ✨ Get Recipe Ideas from My Products
+                </button>
+            </div>
+
+            {
+                isFormVisible && (
+                    <ProductFormModal
+                        product={editingProduct}
+                        handlers={handlers}
+                        onClose={() => setFormVisible(false)}
+                    />
+                )
+            }
+        </div >
     );
 };
 

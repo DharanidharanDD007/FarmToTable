@@ -19,5 +19,8 @@ const cartSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Add index for better query performance
+cartSchema.index({ userId: 1 }); // For fetching user cart (unique would be better, but allowing multiple carts for now)
+
 const Cart= mongoose.model("Cart", cartSchema);
 module.exports=Cart;

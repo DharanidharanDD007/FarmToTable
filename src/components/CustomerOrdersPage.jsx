@@ -10,7 +10,10 @@ const CustomerOrdersPage = ({ user, orders, handlers }) => {
 
   const closeFarmerView = () => setSelectedFarmer(null);
 
-  const myOrders = orders.filter(o => o.customerId === user.id);
+
+
+  // Orders are already filtered by App.jsx
+  const myOrders = Array.isArray(orders) ? orders : [];
 
   return (
     <div>
@@ -29,20 +32,19 @@ const CustomerOrdersPage = ({ user, orders, handlers }) => {
         ) : (
           <div className="space-y-6">
             {myOrders.map(order => (
-              <div key={order.id} className="border rounded-lg p-4">
+              <div key={order.id || order._id} className="border rounded-lg p-4">
                 <div className="flex justify-between items-center border-b pb-2 mb-2">
                   <div>
-                    <p className="font-bold">Order #{order.id.slice(-6)}</p>
+                    <p className="font-bold">Order #{(order.id || order._id || "").slice(-6)}</p>
                     <p className="text-sm">Placed on: {order.createdAt}</p>
                   </div>
                   <div className="text-right">
                     <p className="font-bold">Total: ₹{order.total}</p>
                     <span
-                      className={`px-3 py-1 text-sm rounded-full ${
-                        order.status === "New"
-                          ? "bg-red-100 text-red-800"
-                          : "bg-yellow-100 text-yellow-800"
-                      }`}
+                      className={`px-3 py-1 text-sm rounded-full ${order.status === "New"
+                        ? "bg-red-100 text-red-800"
+                        : "bg-yellow-100 text-yellow-800"
+                        }`}
                     >
                       Status: {order.status}
                     </span>
@@ -50,7 +52,7 @@ const CustomerOrdersPage = ({ user, orders, handlers }) => {
                 </div>
 
                 <div className="mt-4 space-y-2">
-                  {order.products.map(p => (
+                  {(order.products || []).map(p => (
                     <div key={p.id} className="flex justify-between items-center py-2">
                       <p>
                         {p.quantity} x {p.name}
@@ -95,7 +97,7 @@ const CustomerOrdersPage = ({ user, orders, handlers }) => {
                       src={prod.image}
                       alt={prod.name}
                       className="w-full h-48 object-cover"
-                      onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/600x400/CCCCCC/FFFFFF?text=No+Image'; }}
+                      onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/600x400/CCCCCC/FFFFFF?text=No+Image'; }}
                     />
                     <div className="p-4 flex flex-col flex-grow">
                       <h4 className="text-lg font-semibold">{prod.name}</h4>

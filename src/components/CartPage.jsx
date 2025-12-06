@@ -1,140 +1,192 @@
-import { useState } from "react";
-import PlusIcon from "../icons/PlusIcon";
-import MinusIcon from "../icons/MinusIcon";
-import TrashIcon from "../icons/TrashIcon";
-import SparklesIcon from "../icons/SparklesIcon";
+import React, { useState, useEffect } from "react";
+import PaymentModal from "../components/PaymentModal";
+import { PaymentService } from "../services/PaymentService";
+import { CartService } from "../services/CartService";
+import callGeminiAPI from "../api/gemini";
 
-const CartPage = ({ cart, handlers }) => {
-    const [recipeIdeas, setRecipeIdeas] = useState("");
-    const [isGenerating, setIsGenerating] = useState(false);
+export default function CartPage({ user, handlers }) {
+    const [cartItems, setCartItems] = useState([]);
+    const [cartTotal, setCartTotal] = useState(0);
+    const [showModal, setShowModal] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [recipes, setRecipes] = useState({}); // Store recipes by productId
+    const [generatingRecipeId, setGeneratingRecipeId] = useState(null);
 
-    const handleGenerate = async () => {
-        setIsGenerating(true);
-        const result = await handlers.generateRecipe();
-        setRecipeIdeas(result);
-        setIsGenerating(false);
+    // Fetch Cart on Mount
+    useEffect(() => {
+        if (user?.id || user?._id) {
+            fetchCart();
+        }
+    }, [user]);
+
+    const fetchCart = async () => {
+        try {
+            setLoading(true);
+            const userId = user.id || user._id;
+            const data = await CartService.getCart(userId);
+            setCartItems(data.items || []);
+            setCartTotal(data.totalAmount || 0);
+        } catch (error) {
+            console.error("Failed to fetch cart", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const totalPrice = cart
-        .reduce((total, item) => total + item.price * item.quantity, 0)
-        .toFixed(2);
+    const handleQuantityChange = async (productId, newQuantity) => {
+        if (newQuantity < 1) return;
+        try {
+            const userId = user.id || user._id;
+            const data = await CartService.updateQuantity(userId, productId, newQuantity);
+            setCartItems(data.items);
+            setCartTotal(data.totalAmount);
+        } catch (error) {
+            console.error("Failed to update quantity", error);
+        }
+    };
+
+    const handleRemove = async (productId) => {
+        try {
+            const userId = user.id || user._id;
+            const data = await CartService.removeFromCart(userId, productId);
+            setCartItems(data.items);
+            setCartTotal(data.totalAmount);
+        } catch (error) {
+            console.error("Failed to remove item", error);
+        }
+    };
+
+    const handleGenerateRecipe = async (item) => {
+        setGeneratingRecipeId(item.productId);
+        const prompt = `Suggest a simple, delicious recipe using ${item.name}. 
+        Format: 
+        **Recipe Name**
+        *Ingredients*: ...
+        *Steps*: ...`;
+
+        const recipe = await callGeminiAPI(prompt, () => { });
+        setRecipes(prev => ({ ...prev, [item.productId]: recipe }));
+        setGeneratingRecipeId(null);
+    };
+
+    const handleFinalPayment = async () => {
+        setShowModal(false);
+        await PaymentService.checkout({
+            cart: cartItems,
+            user,
+            totalAmount: cartTotal,
+            onSuccess: async (data) => {
+                alert("Payment Successful! Order ID: " + data.orderId);
+                setCartItems([]);
+                setCartTotal(0);
+                const userId = user.id || user._id;
+                await CartService.clearCart(userId);
+                handlers.navigateTo("customerOrders");
+            },
+            onError: (error) => {
+                alert("Payment Failed: " + error);
+            }
+        });
+    };
+
+    if (loading) return <div className="text-center p-8">Loading Cart...</div>;
 
     return (
-        <div className="bg-white p-6 rounded-lg shadow-md max-w-3xl mx-auto">
-            <h2 className="text-3xl font-bold text-gray-800 mb-6 border-b pb-4">
-                Your Shopping Cart
-            </h2>
+        <div className="max-w-4xl mx-auto p-6 bg-white shadow-lg rounded-lg mt-8">
+            <h2 className="text-3xl font-bold mb-6 text-gray-800 border-b pb-4">Your Shopping Cart</h2>
 
-            {cart.length === 0 ? (
-                <p className="text-gray-500">
-                    Your cart is empty. Add some fresh produce!
-                </p>
+            {cartItems.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">Your cart is empty.</p>
             ) : (
-                <div>
-                    {/* Cart Items */}
-                    <div className="space-y-4">
-                        {cart.map((item) => (
-                            <div
-                                key={item.id}
-                                className="flex justify-between items-center border-b py-4"
-                            >
-                                <div className="flex items-center space-x-4">
-                                    <img
-                                        src={item.image}
-                                        alt={item.name}
-                                        className="w-16 h-16 object-cover rounded-md"
-                                        onError={(e) => {
-                                            e.target.onerror = null;
-                                            e.target.src =
-                                                "https://placehold.co/100x100/CCCCCC/FFFFFF?text=Img";
-                                        }}
-                                    />
-                                    <div>
-                                        <p className="font-semibold text-lg">{item.name}</p>
-                                        <p className="text-sm text-gray-500">
-                                            ₹{item.price} / {item.unit}
-                                        </p>
-                                    </div>
+                <div className="space-y-6">
+                    {cartItems.map((item) => (
+                        <div key={item.productId} className="flex flex-col border-b pb-6 last:border-0">
+                            {/* Product Row */}
+                            <div className="flex items-center gap-6">
+                                <img
+                                    src={item.image || "https://placehold.co/100"}
+                                    alt={item.name}
+                                    className="w-24 h-24 object-cover rounded-md shadow-sm"
+                                />
+
+                                <div className="flex-1">
+                                    <h3 className="text-xl font-semibold text-gray-800">{item.name}</h3>
+                                    <p className="text-gray-500 text-sm">Farmer: {item.farmerName || "Local Farm"}</p>
+                                    <p className="text-green-600 font-bold mt-1">₹{item.price} / {item.unit}</p>
                                 </div>
 
-                                <div className="flex items-center space-x-4">
-                                    {/* Quantity Controls */}
-                                    <div className="flex items-center border rounded-lg">
-                                        <button
-                                            onClick={() =>
-                                                handlers.updateCartQuantity(item.id, -1)
-                                            }
-                                            className="px-3 py-1 text-gray-600 hover:bg-gray-100"
-                                        >
-                                            <MinusIcon />
-                                        </button>
-                                        <span className="px-4 py-1 font-bold">
-                                            {item.quantity}
-                                        </span>
-                                        <button
-                                            onClick={() =>
-                                                handlers.updateCartQuantity(item.id, 1)
-                                            }
-                                            className="px-3 py-1 text-gray-600 hover:bg-gray-100"
-                                        >
-                                            <PlusIcon />
-                                        </button>
-                                    </div>
-
-                                    {/* Price */}
-                                    <p className="font-bold w-20 text-right">
-                                        ₹{(item.price * item.quantity).toFixed(2)}
-                                    </p>
-
-                                    {/* Remove Button */}
+                                {/* Quantity Controls */}
+                                <div className="flex items-center gap-3 bg-gray-100 px-3 py-1 rounded-full">
                                     <button
-                                        onClick={() => handlers.removeFromCart(item.id)}
-                                        className="text-red-500 hover:text-red-700"
+                                        onClick={() => handleQuantityChange(item.productId, item.quantity - 1)}
+                                        className="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow hover:bg-gray-200 font-bold"
                                     >
-                                        <TrashIcon />
+                                        -
+                                    </button>
+                                    <span className="font-semibold w-6 text-center">{item.quantity}</span>
+                                    <button
+                                        onClick={() => handleQuantityChange(item.productId, item.quantity + 1)}
+                                        className="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow hover:bg-gray-200 font-bold"
+                                    >
+                                        +
                                     </button>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
 
-                    {/* Total & Checkout */}
-                    <div className="mt-8 text-right">
-                        <p className="text-2xl font-bold">Total: ₹{totalPrice}</p>
+                                <div className="text-right min-w-[100px]">
+                                    <p className="font-bold text-lg">₹{item.subtotal}</p>
+                                </div>
+
+                                <button
+                                    onClick={() => handleRemove(item.productId)}
+                                    className="text-red-500 hover:text-red-700 p-2"
+                                    title="Remove Item"
+                                >
+                                    🗑️
+                                </button>
+                            </div>
+
+                            {/* AI Recipe Section */}
+                            <div className="mt-4 ml-32">
+                                {!recipes[item.productId] ? (
+                                    <button
+                                        onClick={() => handleGenerateRecipe(item)}
+                                        disabled={generatingRecipeId === item.productId}
+                                        className="text-sm text-purple-600 hover:text-purple-800 flex items-center gap-2"
+                                    >
+                                        ✨ {generatingRecipeId === item.productId ? "Generating Recipe..." : "Suggest a Recipe"}
+                                    </button>
+                                ) : (
+                                    <div className="bg-purple-50 p-4 rounded-lg border border-purple-100 text-sm text-gray-700 mt-2 animate-fade-in">
+                                        <h4 className="font-bold text-purple-800 mb-2">👩‍🍳 Chef's Suggestion:</h4>
+                                        <div className="whitespace-pre-wrap">{recipes[item.productId]}</div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+
+                    {/* Cart Footer */}
+                    <div className="flex justify-between items-center pt-6 border-t mt-6">
+                        <div className="text-2xl font-bold text-gray-800">
+                            Total: <span className="text-green-600">₹{cartTotal}</span>
+                        </div>
                         <button
-                            onClick={handlers.checkout}
-                            className="mt-4 w-full md:w-auto bg-blue-600 text-white py-3 px-8 rounded-lg font-semibold hover:bg-blue-700"
+                            onClick={() => setShowModal(true)}
+                            className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 shadow-lg font-bold text-lg transition-transform transform hover:scale-105"
                         >
                             Proceed to Checkout
                         </button>
                     </div>
-
-                    {/* Recipe Generator */}
-                    <div className="mt-8 border-t pt-6">
-                        <button
-                            onClick={handleGenerate}
-                            disabled={isGenerating}
-                            className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white py-3 px-8 rounded-lg font-semibold hover:bg-purple-700 disabled:bg-purple-300"
-                        >
-                            <SparklesIcon />
-                            {isGenerating ? "Generating Ideas..." : "✨ Get Recipe Ideas"}
-                        </button>
-
-                        {recipeIdeas && (
-                            <div className="mt-4 bg-purple-50 p-4 rounded-lg border border-purple-200">
-                                <h3 className="text-xl font-semibold text-purple-800 mb-2">
-                                    Recipe Suggestion
-                                </h3>
-                                <pre className="whitespace-pre-wrap font-sans text-gray-700">
-                                    {recipeIdeas}
-                                </pre>
-                            </div>
-                        )}
-                    </div>
                 </div>
+            )}
+
+            {showModal && (
+                <PaymentModal
+                    totalAmount={cartTotal}
+                    onConfirm={handleFinalPayment}
+                    onCancel={() => setShowModal(false)}
+                />
             )}
         </div>
     );
-};
-
-export default CartPage;
+}
