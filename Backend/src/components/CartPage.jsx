@@ -1,4 +1,3 @@
-//
 import React, { useState, useEffect } from "react";
 import PaymentModal from "../components/PaymentModal";
 import { PaymentService } from "../services/PaymentService";
@@ -10,13 +9,12 @@ export default function CartPage({ user, handlers }) {
     const [cartTotal, setCartTotal] = useState(0);
     const [showModal, setShowModal] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [recipes, setRecipes] = useState({});
+    const [recipes, setRecipes] = useState({}); // Store recipes by productId
     const [generatingRecipeId, setGeneratingRecipeId] = useState(null);
 
     // Fetch Cart on Mount
     useEffect(() => {
-        // Standardized to _id
-        if (user?._id) {
+        if (user?.id || user?._id) {
             fetchCart();
         }
     }, [user]);
@@ -24,8 +22,7 @@ export default function CartPage({ user, handlers }) {
     const fetchCart = async () => {
         try {
             setLoading(true);
-            // Standardized to _id
-            const userId = user._id;
+            const userId = user.id || user._id;
             const data = await CartService.getCart(userId);
             setCartItems(data.items || []);
             setCartTotal(data.totalAmount || 0);
@@ -39,8 +36,7 @@ export default function CartPage({ user, handlers }) {
     const handleQuantityChange = async (productId, newQuantity) => {
         if (newQuantity < 1) return;
         try {
-            // Standardized to _id
-            const userId = user._id;
+            const userId = user.id || user._id;
             const data = await CartService.updateQuantity(userId, productId, newQuantity);
             setCartItems(data.items);
             setCartTotal(data.totalAmount);
@@ -51,8 +47,7 @@ export default function CartPage({ user, handlers }) {
 
     const handleRemove = async (productId) => {
         try {
-            // Standardized to _id
-            const userId = user._id;
+            const userId = user.id || user._id;
             const data = await CartService.removeFromCart(userId, productId);
             setCartItems(data.items);
             setCartTotal(data.totalAmount);
@@ -84,8 +79,7 @@ export default function CartPage({ user, handlers }) {
                 alert("Payment Successful! Order ID: " + data.orderId);
                 setCartItems([]);
                 setCartTotal(0);
-                // Standardized to _id
-                const userId = user._id;
+                const userId = user.id || user._id;
                 await CartService.clearCart(userId);
                 handlers.navigateTo("customerOrders");
             },

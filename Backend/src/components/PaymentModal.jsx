@@ -1,26 +1,5 @@
 import React, { useState } from 'react';
 
-// Helper: Simulate payment gateway response (Mock logic)
-// In a real app, this would be replaced by a call to your backend or payment SDK
-const simulatePaymentGateway = (method, details) => {
-    return new Promise((resolve, reject) => {
-        setTimeout(() => {
-            // Failure Simulation Logic
-            if (method === 'card' && details.cvv === '000') {
-                reject('Payment Declined: Invalid CVV or Bank Rejection');
-            } else if (method === 'upi' && details.upiId.endsWith('@fail')) {
-                reject('Payment Failed: UPI Transaction Declined');
-            } else {
-                // Success Simulation
-                resolve({ 
-                    success: true, 
-                    transactionId: `TXN_${Date.now()}_${Math.floor(Math.random() * 1000)}` 
-                });
-            }
-        }, 1500);
-    });
-};
-
 const PaymentModal = ({ totalAmount, onConfirm, onCancel }) => {
     const [paymentMethod, setPaymentMethod] = useState('card');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -28,24 +7,29 @@ const PaymentModal = ({ totalAmount, onConfirm, onCancel }) => {
     const [upiId, setUpiId] = useState('');
     const [error, setError] = useState('');
 
-    const handleConfirm = async () => {
+    const handleConfirm = () => {
         setError('');
         setIsProcessing(true);
 
-        try {
-            // 1. Validate & Simulate Payment
-            const result = await simulatePaymentGateway(paymentMethod, paymentMethod === 'card' ? cardDetails : { upiId });
-            
-            // 2. Pass successful result back to parent
+        // Simulate a short delay for "processing"
+        setTimeout(() => {
+            // Failure Simulation Logic
+            if (paymentMethod === 'card' && cardDetails.cvv === '000') {
+                setError('Payment Declined: Invalid CVV or Bank Rejection');
+                setIsProcessing(false);
+                return;
+            }
+            if (paymentMethod === 'upi' && upiId.endsWith('@fail')) {
+                setError('Payment Failed: UPI Transaction Declined');
+                setIsProcessing(false);
+                return;
+            }
+
             onConfirm({
                 method: paymentMethod,
-                details: paymentMethod === 'card' ? cardDetails : (paymentMethod === 'upi' ? { upiId } : {}),
-                ...result // Includes transactionId
+                details: paymentMethod === 'card' ? cardDetails : (paymentMethod === 'upi' ? { upiId } : {})
             });
-        } catch (errMessage) {
-            setError(errMessage);
-            setIsProcessing(false);
-        }
+        }, 1500);
     };
 
     const isValid = () => {

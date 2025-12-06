@@ -2,7 +2,6 @@ const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
-const logger = require("./config/logger");
 
 // Config - Load env vars FIRST
 dotenv.config();
@@ -71,13 +70,14 @@ app.use("/api/payments", paymentRoutes);
 
 // Global Error Handler (Optional but good practice)
 app.use((err, req, res, next) => {
-  logger.error(err.stack); // Replaces console.error
-  res.status(500).json({ message: "Something went wrong!" });
+  console.error(err.stack);
+  res.status(500).json({ message: "Something went wrong!", error: err.message });
 });
 
 // -------------------------------
 // Start server
 // -------------------------------
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  logger.info(`Server running on PORT: ${PORT}`);
+  console.log(`Server running on PORT: ${PORT}`);
 });
