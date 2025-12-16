@@ -1,3 +1,0 @@
-const LogoIcon = () => ( <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"> <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2Z" stroke="#34D399" strokeWidth="2"/> <path d="M12 18C12 18 15 15.5 15 12C15 8.5 12 6 12 6C12 6 9 8.5 9 12C9 15.5 12 18 12 18Z" fill="#34D399"/> <path d="M12 6V3" stroke="#34D399" strokeWidth="2" strokeLinecap="round"/> </svg> );
-
-export default LogoIcon;

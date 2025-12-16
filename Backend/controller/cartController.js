@@ -13,15 +13,46 @@ const calculateTotals = (cart) => {
   return { ...cart.toObject(), items, totalAmount };
 };
 
-// Get cart for a user
+// Get cart for a user (With Auto-Cleanup of Stale Items)
 const getCart = async (req, res) => {
   try {
     const { userId } = req.params;
-    // Verify user can only access their own cart
-    if (req.user.id !== userId && req.user.role !== 'admin') {
-      return res.status(403).json({ message: "Access denied. You can only access your own cart." });
+    const requesterId = req.user._id || req.user.id;
+
+    if (requesterId !== userId && req.user.role !== 'admin') {
+      return res.status(403).json({ message: "Access denied." });
     }
-    const cart = await Cart.findOne({ userId });
+
+    let cart = await Cart.findOne({ userId });
+    
+    if (cart && cart.items.length > 0) {
+      // 1. Extract all product IDs from the cart
+      const productIds = cart.items.map(item => item.productId);
+
+      // 2. Find which of these IDs actually exist in the Product database
+      const validProducts = await Product.find({ _id: { $in: productIds } }).select('_id price name image stock');
+      const validProductIds = new Set(validProducts.map(p => p._id.toString()));
+
+      // 3. Filter out items that no longer exist
+      const originalLength = cart.items.length;
+      cart.items = cart.items.filter(item => validProductIds.has(item.productId));
+
+      // 4. Update prices/details if they changed (Optional but good for data integrity)
+      cart.items.forEach(item => {
+        const freshProduct = validProducts.find(p => p._id.toString() === item.productId);
+        if (freshProduct) {
+            item.price = freshProduct.price;
+            item.name = freshProduct.name;
+            item.image = freshProduct.image;
+        }
+      });
+
+      // 5. Save only if we removed items or updated
+      if (cart.items.length !== originalLength || validProducts.length > 0) {
+        await cart.save();
+      }
+    }
+
     res.status(200).json(calculateTotals(cart));
   } catch (error) {
     console.error("Error fetching cart:", error);
@@ -33,9 +64,8 @@ const getCart = async (req, res) => {
 const addToCart = async (req, res) => {
   try {
     const { productId, quantity } = req.body;
-    const userId = req.user.id; // Use authenticated user's ID for security
+    const userId = req.user._id || req.user.id;
 
-    // Only customers can add to cart
     if (req.user.role !== 'customer') {
       return res.status(403).json({ message: "Only customers can add items to cart." });
     }
@@ -43,7 +73,6 @@ const addToCart = async (req, res) => {
     const product = await Product.findById(productId);
     if (!product) return res.status(404).json({ message: "Product not found" });
 
-    // Check stock availability
     const requestedQuantity = quantity || 1;
     if (product.stock < requestedQuantity) {
       return res.status(400).json({ 
@@ -52,7 +81,7 @@ const addToCart = async (req, res) => {
     }
 
     const item = {
-      productId,
+      productId: product._id.toString(), // Ensure ID is string
       name: product.name,
       price: product.price,
       quantity: requestedQuantity,
@@ -69,7 +98,6 @@ const addToCart = async (req, res) => {
       const existing = cart.items.find(i => i.productId === productId);
       if (existing) {
         const newQuantity = existing.quantity + requestedQuantity;
-        // Check if total quantity exceeds stock
         if (product.stock < newQuantity) {
           return res.status(400).json({ 
             message: `Cannot add more. Only ${product.stock} ${product.unit} available.` 
@@ -93,9 +121,8 @@ const addToCart = async (req, res) => {
 const updateCartQuantity = async (req, res) => {
   try {
     const { productId, quantity } = req.body;
-    const userId = req.user.id; // Use authenticated user's ID
+    const userId = req.user._id || req.user.id;
 
-    // Only customers can update cart
     if (req.user.role !== 'customer') {
       return res.status(403).json({ message: "Only customers can update cart." });
     }
@@ -106,10 +133,14 @@ const updateCartQuantity = async (req, res) => {
     const item = cart.items.find(i => i.productId === productId);
     if (!item) return res.status(404).json({ message: "Item not found in cart" });
 
-    // Validate stock if quantity is being increased
     if (quantity > item.quantity) {
       const product = await Product.findById(productId);
-      if (!product) return res.status(404).json({ message: "Product not found" });
+      if (!product) {
+         // Auto-remove if product deleted
+         cart.items = cart.items.filter(i => i.productId !== productId);
+         await cart.save();
+         return res.status(404).json({ message: "Product no longer available" });
+      }
       
       if (product.stock < quantity) {
         return res.status(400).json({ 
@@ -136,11 +167,10 @@ const updateCartQuantity = async (req, res) => {
 const removeFromCart = async (req, res) => {
   try {
     const { productId } = req.body;
-    const userId = req.user.id; // Use authenticated user's ID
+    const userId = req.user._id || req.user.id;
 
-    // Only customers can remove from cart
     if (req.user.role !== 'customer') {
-      return res.status(403).json({ message: "Only customers can remove items from cart." });
+      return res.status(403).json({ message: "Only customers can remove items." });
     }
 
     const cart = await Cart.findOneAndUpdate(
@@ -159,9 +189,8 @@ const removeFromCart = async (req, res) => {
 // Clear cart
 const clearCart = async (req, res) => {
   try {
-    const userId = req.user.id; // Use authenticated user's ID
+    const userId = req.user._id || req.user.id;
 
-    // Only customers can clear cart
     if (req.user.role !== 'customer') {
       return res.status(403).json({ message: "Only customers can clear cart." });
     }

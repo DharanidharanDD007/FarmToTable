@@ -1,6 +1,4 @@
-//
 import React, { useState, useEffect } from "react";
-import PaymentModal from "../components/PaymentModal";
 import { PaymentService } from "../services/PaymentService";
 import { CartService } from "../services/CartService";
 import callGeminiAPI from "../api/gemini";
@@ -8,24 +6,24 @@ import callGeminiAPI from "../api/gemini";
 export default function CartPage({ user, handlers }) {
     const [cartItems, setCartItems] = useState([]);
     const [cartTotal, setCartTotal] = useState(0);
-    const [showModal, setShowModal] = useState(false);
     const [loading, setLoading] = useState(false);
     const [recipes, setRecipes] = useState({});
     const [generatingRecipeId, setGeneratingRecipeId] = useState(null);
 
+    // Helper to safely get User ID
+    const getUserId = () => user?.id || user?._id;
+
     // Fetch Cart on Mount
     useEffect(() => {
-        // Standardized to _id
-        if (user?._id) {
-            fetchCart();
+        const userId = getUserId();
+        if (userId) {
+            fetchCart(userId);
         }
     }, [user]);
 
-    const fetchCart = async () => {
+    const fetchCart = async (userId) => {
         try {
             setLoading(true);
-            // Standardized to _id
-            const userId = user._id;
             const data = await CartService.getCart(userId);
             setCartItems(data.items || []);
             setCartTotal(data.totalAmount || 0);
@@ -39,11 +37,10 @@ export default function CartPage({ user, handlers }) {
     const handleQuantityChange = async (productId, newQuantity) => {
         if (newQuantity < 1) return;
         try {
-            // Standardized to _id
-            const userId = user._id;
+            const userId = getUserId();
             const data = await CartService.updateQuantity(userId, productId, newQuantity);
-            setCartItems(data.items);
-            setCartTotal(data.totalAmount);
+            setCartItems(data.items || []);
+            setCartTotal(data.totalAmount || 0);
         } catch (error) {
             console.error("Failed to update quantity", error);
         }
@@ -51,11 +48,10 @@ export default function CartPage({ user, handlers }) {
 
     const handleRemove = async (productId) => {
         try {
-            // Standardized to _id
-            const userId = user._id;
+            const userId = getUserId();
             const data = await CartService.removeFromCart(userId, productId);
-            setCartItems(data.items);
-            setCartTotal(data.totalAmount);
+            setCartItems(data.items || []);
+            setCartTotal(data.totalAmount || 0);
         } catch (error) {
             console.error("Failed to remove item", error);
         }
@@ -69,50 +65,75 @@ export default function CartPage({ user, handlers }) {
         *Ingredients*: ...
         *Steps*: ...`;
 
-        const recipe = await callGeminiAPI(prompt, () => { });
-        setRecipes(prev => ({ ...prev, [item.productId]: recipe }));
-        setGeneratingRecipeId(null);
+        try {
+            const recipe = await callGeminiAPI(prompt, () => { });
+            setRecipes(prev => ({ ...prev, [item.productId]: recipe }));
+        } catch (error) {
+            console.error("Recipe generation error:", error);
+        } finally {
+            setGeneratingRecipeId(null);
+        }
     };
 
     const handleFinalPayment = async () => {
-        setShowModal(false);
+
+        // 1. Call Payment Service (Opens Razorpay)
         await PaymentService.checkout({
             cart: cartItems,
-            user,
+            user: user,
             totalAmount: cartTotal,
             onSuccess: async (data) => {
-                alert("Payment Successful! Order ID: " + data.orderId);
+                alert("Order Placed Successfully! Order ID: " + data.orderId);
+
+                // 2. Clear Local State
                 setCartItems([]);
                 setCartTotal(0);
-                // Standardized to _id
-                const userId = user._id;
-                await CartService.clearCart(userId);
+
+                // 3. Clear Backend Cart (Double Ensure)
+                try {
+                    const userId = getUserId();
+                    await CartService.clearCart(userId);
+                } catch (err) {
+                    console.error("Cart clear warning:", err);
+                }
+
+                // 4. Navigate to Orders Page
                 handlers.navigateTo("customerOrders");
             },
             onError: (error) => {
+                console.error("Payment flow error:", error);
                 alert("Payment Failed: " + error);
             }
         });
     };
 
-    if (loading) return <div className="text-center p-8">Loading Cart...</div>;
+    if (loading) return <div className="text-center p-8 text-xl font-semibold text-gray-600">Loading Cart...</div>;
 
     return (
         <div className="max-w-4xl mx-auto p-6 bg-white shadow-lg rounded-lg mt-8">
             <h2 className="text-3xl font-bold mb-6 text-gray-800 border-b pb-4">Your Shopping Cart</h2>
 
             {cartItems.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">Your cart is empty.</p>
+                <div className="text-center py-10">
+                    <p className="text-gray-500 text-lg mb-4">Your cart is empty.</p>
+                    <button
+                        onClick={() => handlers.goToProducts()}
+                        className="text-green-600 hover:underline font-medium"
+                    >
+                        Browse Products
+                    </button>
+                </div>
             ) : (
                 <div className="space-y-6">
                     {cartItems.map((item) => (
-                        <div key={item.productId} className="flex flex-col border-b pb-6 last:border-0">
+                        <div key={item.productId} className="flex flex-col border-b pb-6 last:border-0 animate-fade-in">
                             {/* Product Row */}
                             <div className="flex items-center gap-6">
                                 <img
                                     src={item.image || "https://placehold.co/100"}
                                     alt={item.name}
                                     className="w-24 h-24 object-cover rounded-md shadow-sm"
+                                    onError={(e) => { e.target.src = 'https://placehold.co/100?text=No+Image'; }}
                                 />
 
                                 <div className="flex-1">
@@ -125,14 +146,14 @@ export default function CartPage({ user, handlers }) {
                                 <div className="flex items-center gap-3 bg-gray-100 px-3 py-1 rounded-full">
                                     <button
                                         onClick={() => handleQuantityChange(item.productId, item.quantity - 1)}
-                                        className="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow hover:bg-gray-200 font-bold"
+                                        className="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow hover:bg-gray-200 font-bold transition-colors"
                                     >
                                         -
                                     </button>
                                     <span className="font-semibold w-6 text-center">{item.quantity}</span>
                                     <button
                                         onClick={() => handleQuantityChange(item.productId, item.quantity + 1)}
-                                        className="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow hover:bg-gray-200 font-bold"
+                                        className="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow hover:bg-gray-200 font-bold transition-colors"
                                     >
                                         +
                                     </button>
@@ -144,7 +165,7 @@ export default function CartPage({ user, handlers }) {
 
                                 <button
                                     onClick={() => handleRemove(item.productId)}
-                                    className="text-red-500 hover:text-red-700 p-2"
+                                    className="text-red-500 hover:text-red-700 p-2 transition-colors"
                                     title="Remove Item"
                                 >
                                     🗑️
@@ -152,12 +173,12 @@ export default function CartPage({ user, handlers }) {
                             </div>
 
                             {/* AI Recipe Section */}
-                            <div className="mt-4 ml-32">
+                            <div className="mt-4 ml-0 md:ml-32">
                                 {!recipes[item.productId] ? (
                                     <button
                                         onClick={() => handleGenerateRecipe(item)}
                                         disabled={generatingRecipeId === item.productId}
-                                        className="text-sm text-purple-600 hover:text-purple-800 flex items-center gap-2"
+                                        className="text-sm text-purple-600 hover:text-purple-800 flex items-center gap-2 transition-colors"
                                     >
                                         ✨ {generatingRecipeId === item.productId ? "Generating Recipe..." : "Suggest a Recipe"}
                                     </button>
@@ -172,26 +193,18 @@ export default function CartPage({ user, handlers }) {
                     ))}
 
                     {/* Cart Footer */}
-                    <div className="flex justify-between items-center pt-6 border-t mt-6">
+                    <div className="flex flex-col sm:flex-row justify-between items-center pt-6 border-t mt-6 gap-4">
                         <div className="text-2xl font-bold text-gray-800">
                             Total: <span className="text-green-600">₹{cartTotal}</span>
                         </div>
                         <button
-                            onClick={() => setShowModal(true)}
-                            className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 shadow-lg font-bold text-lg transition-transform transform hover:scale-105"
+                            onClick={handleFinalPayment}
+                            className="w-full sm:w-auto bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 shadow-lg font-bold text-lg transition-transform transform hover:scale-105"
                         >
-                            Proceed to Checkout
+                            Proceed to Pay
                         </button>
                     </div>
                 </div>
-            )}
-
-            {showModal && (
-                <PaymentModal
-                    totalAmount={cartTotal}
-                    onConfirm={handleFinalPayment}
-                    onCancel={() => setShowModal(false)}
-                />
             )}
         </div>
     );

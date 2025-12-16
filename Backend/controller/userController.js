@@ -1,4 +1,4 @@
-//
+// controller/userController.js
 const User = require("../model/User.js");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -8,17 +8,27 @@ const signup = async (req, res) => {
     try {
         const { name, email, password, role, farmDetails } = req.body;
 
-        const existingUser = await User.findOne({ email });
+        // Basic validation
+        if (!email || !password || !name || !role) {
+            return res.status(400).json({ message: "All fields (name, email, password, role) are required." });
+        }
+
+        const lowerEmail = email.toLowerCase();
+
+        // Check if user already exists
+        const existingUser = await User.findOne({ email: lowerEmail });
         if (existingUser) {
             return res.status(400).json({ message: "User with this email already exists." });
         }
 
+        // Hash the password
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
+        // Create a new user
         const newUser = new User({
             name,
-            email,
+            email: lowerEmail,
             password: hashedPassword,
             role,
             farmDetails: role === 'farmer' ? farmDetails : undefined
@@ -26,6 +36,7 @@ const signup = async (req, res) => {
 
         await newUser.save();
 
+        // Don't send the password back
         const userResponse = newUser.toObject();
         delete userResponse.password;
 
@@ -35,11 +46,18 @@ const signup = async (req, res) => {
     }
 };
 
+// Login
 const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        const user = await User.findOne({ email });
+        if (!email || !password) {
+            return res.status(400).json({ message: "Email and password are required." });
+        }
+
+        const lowerEmail = email.toLowerCase();
+
+        const user = await User.findOne({ email: lowerEmail });
         if (!user) {
             return res.status(400).json({ message: "Invalid credentials." });
         }
@@ -49,12 +67,14 @@ const login = async (req, res) => {
             return res.status(400).json({ message: "Invalid credentials." });
         }
 
-        // Standardize: Use _id only
+        // Standardize ID
         const userId = user._id.toString();
 
+        // Create Token Payload (Adding 'id' alias for compatibility)
         const payload = {
             user: {
-                _id: userId, // Only _id
+                id: userId,  // ✅ Added 'id' so other controllers can use req.user.id
+                _id: userId,
                 role: user.role,
                 name: user.name,
                 location: user.farmDetails?.location || ''
@@ -71,7 +91,8 @@ const login = async (req, res) => {
             message: "Logged in successfully",
             token: token,
             user: {
-                _id: userId, // Only _id
+                id: userId,
+                _id: userId,
                 name: user.name,
                 email: user.email,
                 role: user.role,
@@ -84,6 +105,7 @@ const login = async (req, res) => {
     }
 };
 
+// Get Farmers
 const getFarmers = async (req, res) => {
     try {
         const farmers = await User.find({ role: "farmer" }).select("-password");
@@ -93,6 +115,7 @@ const getFarmers = async (req, res) => {
     }
 };
 
+// Get Customers
 const getCustomers = async (req, res) => {
     try {
         const customers = await User.find({ role: "customer" }).select("-password");
@@ -102,4 +125,5 @@ const getCustomers = async (req, res) => {
     }
 };
 
+// ✅ CRITICAL: Ensure all functions are exported in this object
 module.exports = { signup, login, getFarmers, getCustomers };

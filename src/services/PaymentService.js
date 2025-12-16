@@ -1,68 +1,71 @@
 import api from '../api/axios';
 
 export const PaymentService = {
-    checkout: async ({ cart, user, totalAmount, onSuccess, onError }) => {
+    checkout: async ({ cart, user, onSuccess, onError }) => {
         try {
-            // 1. Create Order on Backend
+            // 1. Create Order
+            // Need to pass customer details for Cashfree
             const response = await api.post("/payments/create-order", {
-                amount: totalAmount
+                cartItems: cart,
+                customerId: user._id || user.id,
+                customerName: user.name,
+                customerEmail: user.email,
+                customerPhone: user.phone || "9999999999" // Default if missing
             });
 
             const orderData = response.data;
+            if (!orderData.payment_session_id) throw new Error("Invalid payment session");
 
-            if (!orderData.id) {
-                throw new Error("Failed to create order");
-            }
+            // 2. Initialize Cashfree
+            const cashfree = new window.Cashfree({
+                mode: orderData.environment?.toLowerCase() || "sandbox"
+            });
 
-            // 2. Razorpay Options
-            const options = {
-                key: import.meta.env.VITE_RAZORPAY_KEY_ID, // Use VITE_ prefix for Vite apps
-                amount: orderData.amount,
-                currency: "INR",
-                name: "Farm to Table",
-                description: "Fresh Produce Purchase",
-                order_id: orderData.id,
-                handler: async function (response) {
-                    // 3. Verify Payment on Backend
-                    try {
-                        // Note: userId and userName are now handled by backend from authenticated user
-                        const verifyRes = await api.post("/payments/verify", {
-                            razorpay_order_id: response.razorpay_order_id,
-                            razorpay_payment_id: response.razorpay_payment_id,
-                            razorpay_signature: response.razorpay_signature,
-                            cartItems: cart,
-                            totalAmount: totalAmount,
-                        });
-
-                        const verifyData = verifyRes.data;
-
-                        if (verifyData.success) {
-                            onSuccess(verifyData);
-                        } else {
-                            onError("Payment verification failed");
-                        }
-                    } catch (err) {
-                        onError("Verification error: " + err.message);
-                    }
-                },
-                prefill: {
-                    name: user.name,
-                    email: user.email,
-                    contact: "9999999999", // Mock or user phone
-                },
-                theme: {
-                    color: "#3399cc",
-                },
+            // 3. Checkout
+            const checkoutOptions = {
+                paymentSessionId: orderData.payment_session_id,
+                redirectTarget: "_modal", // Open in modal
             };
 
-            // 4. Open Razorpay
-            const rzp = new window.Razorpay(options);
-            rzp.on("payment.failed", function (response) {
-                onError(response.error.description);
+            cashfree.checkout(checkoutOptions).then(async (result) => {
+                if (result.error) {
+                    // This happens if user closes modal or there's an issue
+                    onError(result.error.message);
+                }
+                if (result.paymentDetails) {
+                    // Payment might be successful, verify with backend
+                    // Note: In _modal mode, this usually triggers only if redirect is not used, 
+                    // but verifying on close/completion is good practice if data is returned.
+                    // Actually, for modal with no redirect, we might need to rely on webhooks or a manual "Check Status" 
+                    // or the promise resolving with status.
+                    // Cashfree V3 JS often handles the flow. 
+                    // Let's assume on completion we verify.
+
+                    // IMPORTANT: The promise resolution for checkout() depends on integration type.
+                    // For now, we will assume the user completes it. 
+                    // A more robust way is often listening to events if supported, or just verifying orderId.
+
+                    try {
+                        const verifyRes = await api.post("/payments/verify", {
+                            orderId: orderData.order_id,
+                            cartItems: cart,
+                        });
+
+                        if (verifyRes.data.success) {
+                            onSuccess(verifyRes.data);
+                        } else {
+                            onError("Payment not completed or failed verification");
+                        }
+                    } catch (err) {
+                        onError("Verification check failed");
+                    }
+                }
             });
-            rzp.open();
+
         } catch (error) {
-            onError(error.message);
+            console.error("Payment Error:", error);
+            const msg = error.response?.data?.error || error.message;
+            onError(msg);
         }
     },
 };

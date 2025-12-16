@@ -1,4 +1,4 @@
-const ratelimit = require("./config/upstash.js");
+const ratelimit = require("../config/upstash.js");
 
 const rateLimit = async (req, res, next) => {
   try {

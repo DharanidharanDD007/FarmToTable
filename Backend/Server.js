@@ -2,7 +2,6 @@ const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
-const logger = require("./config/logger");
 
 // Config - Load env vars FIRST
 dotenv.config();
@@ -31,8 +30,7 @@ const connectDB = require("./config/db.js");
 const app = express();
 
 // Middleware
-// CORS configuration - restrict to frontend URL in production
-// CORS configuration - allow multiple local ports for development
+// CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -69,15 +67,18 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/payments", paymentRoutes);
 
-// Global Error Handler (Optional but good practice)
+// Global Error Handler
 app.use((err, req, res, next) => {
-  logger.error(err.stack); // Replaces console.error
-  res.status(500).json({ message: "Something went wrong!" });
+  console.error(err.stack);
+  res.status(500).json({ message: "Something went wrong!", error: err.message });
 });
 
 // -------------------------------
 // Start server
 // -------------------------------
+// ✅ FIX: Define PORT before using it
+const PORT = process.env.PORT || 5000;
+
 app.listen(PORT, () => {
-  logger.info(`Server running on PORT: ${PORT}`);
+  console.log(`Server running on PORT: ${PORT}`);
 });
