@@ -12,12 +12,12 @@ const Order = require("../model/Order.js");
 const getCustomerOrders = async (req, res) => {
     try {
         const userId = req.user.id || req.user._id;
-        
+
         // CRITICAL RULE: Customer must see ALL their orders regardless of status
         // This includes: CONFIRMED, ACCEPTED, SHIPPED, DELIVERED, CANCELLED
         const orders = await Order.find({ customerId: userId })
             .sort({ createdAt: -1 });
-        
+
         res.status(200).json({
             success: true,
             orders: orders,
@@ -42,19 +42,19 @@ const getCustomerOrders = async (req, res) => {
 const getFarmerActiveOrders = async (req, res) => {
     try {
         const farmerId = req.user.id || req.user._id;
-        
+
         // Verify user is a farmer
         if (req.user.role !== 'farmer') {
             return res.status(403).json({ message: "Access denied. Farmer role required." });
         }
-        
+
         // CRITICAL RULE: Farmers see orders with status CONFIRMED, ACCEPTED, or SHIPPED
         // These are "active" orders that need farmer action
         const activeOrders = await Order.find({
             farmerId: farmerId,
             orderStatus: { $in: ['CONFIRMED', 'ACCEPTED', 'SHIPPED'] }
         }).sort({ createdAt: -1 });
-        
+
         res.status(200).json({
             success: true,
             orders: activeOrders,
@@ -71,18 +71,18 @@ const getFarmerActiveOrders = async (req, res) => {
 const getFarmerOrderHistory = async (req, res) => {
     try {
         const farmerId = req.user.id || req.user._id;
-        
+
         // Verify user is a farmer
         if (req.user.role !== 'farmer') {
             return res.status(403).json({ message: "Access denied. Farmer role required." });
         }
-        
+
         // CRITICAL RULE: Delivered orders go to history, but are NEVER deleted
         const historyOrders = await Order.find({
             farmerId: farmerId,
             orderStatus: 'DELIVERED'
         }).sort({ deliveredAt: -1, createdAt: -1 });
-        
+
         res.status(200).json({
             success: true,
             orders: historyOrders,
@@ -99,20 +99,20 @@ const getFarmerOrderHistory = async (req, res) => {
 const getFarmerAllOrders = async (req, res) => {
     try {
         const farmerId = req.user.id || req.user._id;
-        
+
         // Verify user is a farmer
         if (req.user.role !== 'farmer') {
             return res.status(403).json({ message: "Access denied. Farmer role required." });
         }
-        
+
         // Get all orders for this farmer (never deleted)
         const allOrders = await Order.find({ farmerId: farmerId })
             .sort({ createdAt: -1 });
-        
+
         // Separate into active and history
         const active = allOrders.filter(o => ['CONFIRMED', 'ACCEPTED', 'SHIPPED'].includes(o.orderStatus));
         const history = allOrders.filter(o => o.orderStatus === 'DELIVERED');
-        
+
         res.status(200).json({
             success: true,
             active: {
@@ -203,8 +203,8 @@ const updateOrderStatus = async (req, res) => {
         // Validate status value - strict lifecycle
         const validStatuses = ['CONFIRMED', 'ACCEPTED', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
         if (!validStatuses.includes(orderStatus)) {
-            return res.status(400).json({ 
-                message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` 
+            return res.status(400).json({
+                message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
             });
         }
 
@@ -222,9 +222,9 @@ const updateOrderStatus = async (req, res) => {
         }
 
         // Verify farmer owns this order
-        if (order.farmerId !== farmerId) {
-            return res.status(403).json({ 
-                message: "Access denied. You can only update your own orders." 
+        if (String(order.farmerId) !== String(farmerId)) {
+            return res.status(403).json({
+                message: "Access denied. You can only update your own orders."
             });
         }
 
@@ -239,8 +239,8 @@ const updateOrderStatus = async (req, res) => {
         };
 
         if (!validTransitions[currentStatus]?.includes(orderStatus)) {
-            return res.status(400).json({ 
-                message: `Invalid status transition. Cannot change from ${currentStatus} to ${orderStatus}. Valid transitions: ${validTransitions[currentStatus]?.join(', ') || 'None'}` 
+            return res.status(400).json({
+                message: `Invalid status transition. Cannot change from ${currentStatus} to ${orderStatus}. Valid transitions: ${validTransitions[currentStatus]?.join(', ') || 'None'}`
             });
         }
 
@@ -306,12 +306,12 @@ const getOrderById = async (req, res) => {
 module.exports = {
     // Customer endpoints
     getCustomerOrders,
-    
+
     // Farmer endpoints
     getFarmerActiveOrders,
     getFarmerOrderHistory,
     getFarmerAllOrders,
-    
+
     // Common endpoints
     createOrder,
     updateOrderStatus,

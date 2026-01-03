@@ -5,13 +5,19 @@ const OrderRow = ({ order, onUpdateStatus }) => {
     const [orderStatus, setOrderStatus] = useState(order.orderStatus || order.status);
     const [isUpdating, setIsUpdating] = useState(false);
 
+    // Sync state with prop if order updates externally (e.g. from refetch)
+    useEffect(() => {
+        setOrderStatus(order.orderStatus || order.status);
+    }, [order.orderStatus, order.status]);
+
     const handleUpdate = async () => {
         setIsUpdating(true);
         try {
             await onUpdateStatus(order._id || order.id, orderStatus);
         } catch (error) {
             console.error('Failed to update order status:', error);
-            alert('Failed to update order status. Please try again.');
+            const errorMsg = error.response?.data?.message || error.message || 'Failed to update order status.';
+            alert(`Error: ${errorMsg}`);
         } finally {
             setIsUpdating(false);
         }
@@ -34,9 +40,9 @@ const OrderRow = ({ order, onUpdateStatus }) => {
 
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
-        return new Date(dateString).toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'short', 
+        return new Date(dateString).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
             day: 'numeric',
             hour: '2-digit',
             minute: '2-digit'
@@ -109,7 +115,7 @@ const OrderRow = ({ order, onUpdateStatus }) => {
             <ul className="list-disc pl-5 space-y-1">
                 {(order.orderedItems || order.products || []).map((item, index) => (
                     <li key={item.productId || item.id || index} className="text-gray-800">
-                        <span className="font-medium">{item.quantity} x</span> {item.name} 
+                        <span className="font-medium">{item.quantity} x</span> {item.name}
                         <span className="text-gray-500"> @ ₹{item.price}/{item.unit}</span>
                     </li>
                 ))}
@@ -186,21 +192,19 @@ const FarmerOrdersPage = ({ user, handlers }) => {
                 <div className="flex gap-2 mb-6 border-b">
                     <button
                         onClick={() => setActiveTab('active')}
-                        className={`px-4 py-2 font-semibold transition-colors ${
-                            activeTab === 'active'
+                        className={`px-4 py-2 font-semibold transition-colors ${activeTab === 'active'
                                 ? 'border-b-2 border-blue-600 text-blue-600'
                                 : 'text-gray-600 hover:text-gray-800'
-                        }`}
+                            }`}
                     >
                         Active Orders ({activeOrders.length})
                     </button>
                     <button
                         onClick={() => setActiveTab('history')}
-                        className={`px-4 py-2 font-semibold transition-colors ${
-                            activeTab === 'history'
+                        className={`px-4 py-2 font-semibold transition-colors ${activeTab === 'history'
                                 ? 'border-b-2 border-blue-600 text-blue-600'
                                 : 'text-gray-600 hover:text-gray-800'
-                        }`}
+                            }`}
                     >
                         Order History ({historyOrders.length})
                     </button>
@@ -209,8 +213,8 @@ const FarmerOrdersPage = ({ user, handlers }) => {
                 {currentOrders.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
                         <p className="text-lg">
-                            {activeTab === 'active' 
-                                ? 'You have no active orders.' 
+                            {activeTab === 'active'
+                                ? 'You have no active orders.'
                                 : 'You have no order history yet.'}
                         </p>
                         <p className="text-sm mt-2">
@@ -222,8 +226,8 @@ const FarmerOrdersPage = ({ user, handlers }) => {
                 ) : (
                     <div className="space-y-6">
                         {currentOrders.map((order) => (
-                            <OrderRow 
-                                key={order._id || order.id} 
+                            <OrderRow
+                                key={order._id || order.id}
                                 order={order}
                                 onUpdateStatus={handleUpdateStatus}
                             />

@@ -1,7 +1,26 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import * as orderApi from "../api/orders";
 
-const CustomerOrdersPage = ({ user, orders, handlers }) => {
+const CustomerOrdersPage = ({ user, handlers }) => {
   const [selectedFarmer, setSelectedFarmer] = useState(null);
+  const [myOrders, setMyOrders] = useState([]); // Local state for orders
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const orders = await orderApi.getCustomerOrders();
+      setMyOrders(Array.isArray(orders) ? orders : []);
+    } catch (error) {
+      console.error("Failed to fetch customer orders:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleViewFarmer = (farmerId) => {
     handlers.viewFarmer(farmerId);
@@ -9,12 +28,6 @@ const CustomerOrdersPage = ({ user, orders, handlers }) => {
   };
 
   const closeFarmerView = () => setSelectedFarmer(null);
-
-
-
-  // Orders are already filtered by App.jsx
-  // CRITICAL: Customer must see ALL orders (all statuses)
-  const myOrders = Array.isArray(orders) ? orders : [];
 
   // Status badge colors
   const getStatusColor = (status) => {
@@ -38,23 +51,40 @@ const CustomerOrdersPage = ({ user, orders, handlers }) => {
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
     });
   };
 
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto p-6 text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
+        <p className="mt-4 text-gray-600">Loading your orders...</p>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <button
-        onClick={() => handlers.goToProducts()}
-        className="mb-6 bg-gray-200 text-gray-700 px-4 py-2 rounded-full hover:bg-gray-300"
-      >
-        &larr; Back to Products
-      </button>
+      <div className="flex justify-between items-center mb-6">
+        <button
+          onClick={() => handlers.goToProducts()}
+          className="bg-gray-200 text-gray-700 px-4 py-2 rounded-full hover:bg-gray-300"
+        >
+          &larr; Back to Products
+        </button>
+        <button
+          onClick={fetchOrders}
+          className="text-blue-600 hover:text-blue-800 text-sm font-semibold"
+        >
+          Refresh List
+        </button>
+      </div>
 
       <div className="bg-white p-6 rounded-lg shadow-md">
         <h2 className="text-3xl font-bold text-gray-800 mb-4">My Order History</h2>

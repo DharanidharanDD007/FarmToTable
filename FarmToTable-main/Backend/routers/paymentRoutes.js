@@ -4,8 +4,8 @@ const { authMiddleware } = require('../middleware/authMiddleware.js');
 
 const router = express.Router();
 
-// Payment routes require authentication
-router.post("/create-order", authMiddleware, createOrder);
-router.post("/verify", authMiddleware, verifyPayment);
+// These paths must match the ones in your frontend api.post calls
+router.post("/razorpay-order", authMiddleware, createOrder);
+router.post("/razorpay-verify", authMiddleware, verifyPayment);
 
 module.exports = router;

@@ -15,7 +15,7 @@ import CustomerOrdersPage from "./components/CustomerOrdersPage";
 import FarmerProfilePage from "./components/FarmerProfilePage";
 import ConfirmationModal from "./components/ConfirmationModal";
 import ProtectedRoute from "./components/ProtectedRoute";
-import PaymentReturnPage from "./components/PaymentReturnPage";
+
 
 // Services & API
 import callGeminiAPI from "./api/gemini";
@@ -241,6 +241,18 @@ export default function App() {
       return await callGeminiAPI(prompt);
     },
 
+    refreshOrders: async () => {
+      if (user) {
+        if (user.role === "customer") {
+          const customerOrders = await orderApi.getCustomerOrders();
+          setOrders(Array.isArray(customerOrders) ? customerOrders : []);
+        } else if (user.role === "farmer") {
+          const activeOrders = await orderApi.getFarmerActiveOrders();
+          setOrders(Array.isArray(activeOrders) ? activeOrders : []);
+        }
+      }
+    },
+
     handleLocationFilter: (location) => setLocationFilter(location),
 
     getFarmerWithProducts: (farmerId) => {
@@ -264,7 +276,6 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/cart" element={<CartPage user={user} handlers={handlers} />} />
-          <Route path="/payment-return" element={<PaymentReturnPage />} />
 
           {/* Protected Customer Routes */}
           <Route path="/customerOrders" element={
