@@ -4,6 +4,9 @@ import * as orderApi from "../api/orders";
 const CustomerOrdersPage = ({ user, handlers }) => {
   const [selectedFarmer, setSelectedFarmer] = useState(null);
   const [myOrders, setMyOrders] = useState([]); // Local state for orders
+  const [activeTab, setActiveTab] = useState('active');
+  const [activeOrders, setActiveOrders] = useState([]);
+  const [historyOrders, setHistoryOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -14,11 +17,65 @@ const CustomerOrdersPage = ({ user, handlers }) => {
     try {
       setLoading(true);
       const orders = await orderApi.getCustomerOrders();
-      setMyOrders(Array.isArray(orders) ? orders : []);
+      const all = Array.isArray(orders) ? orders : [];
+      setMyOrders(all);
+
+      setActiveOrders(all.filter(o => !['DELIVERED', 'CANCELLED'].includes(o.orderStatus || o.status)));
+      setHistoryOrders(all.filter(o => ['DELIVERED', 'CANCELLED'].includes(o.orderStatus || o.status)));
     } catch (error) {
       console.error("Failed to fetch customer orders:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleConfirmReceipt = async (orderId) => {
+    try {
+      if(!window.confirm("Confirm that you have received this order?")) return;
+      await orderApi.customerReceiveOrder(orderId);
+      
+      await fetchOrders();
+      setActiveTab('history');
+      alert("Receipt confirmed! Order moved to History.");
+    } catch (error) {
+      console.error("Failed to confirm receipt:", error);
+      alert(`Error: ${error.response?.data?.message || error.message}`);
+    }
+  };
+
+  const handleSaveReceipt = (order) => {
+    try {
+        let receiptText = `===============================\n`;
+        receiptText += `          FARM TO TABLE          \n`;
+        receiptText += `===============================\n\n`;
+        receiptText += `Order ID: ${order.orderId || order._id}\n`;
+        receiptText += `Date Placed: ${formatDate(order.createdAt)}\n`;
+        receiptText += `Date Delivered: ${formatDate(order.deliveredAt)}\n`;
+        receiptText += `Status: ${order.orderStatus || order.status}\n\n`;
+        receiptText += `Farmer: ${order.farmerName || 'N/A'}\n\n`;
+        receiptText += `Items:\n`;
+        
+        (order.orderedItems || order.products || []).forEach(item => {
+            receiptText += `- ${item.quantity}x ${item.name} (@ ₹${item.price}/${item.unit}): ₹${(item.quantity * item.price).toFixed(2)}\n`;
+        });
+        
+        receiptText += `\n-------------------------------\n`;
+        receiptText += `Total Paid: ₹${order.total}\n`;
+        receiptText += `-------------------------------\n`;
+        receiptText += `Thank you for shopping with us!\n`;
+
+        const blob = new Blob([receiptText], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `Receipt_${order.orderId || order._id}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error("Failed to generate receipt", error);
+        alert("Failed to generate receipt file.");
     }
   };
 
@@ -69,14 +126,16 @@ const CustomerOrdersPage = ({ user, handlers }) => {
     );
   }
 
+  const currentOrders = activeTab === 'active' ? activeOrders : historyOrders;
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <button
           onClick={() => handlers.goToProducts()}
-          className="bg-gray-200 text-gray-700 px-4 py-2 rounded-full hover:bg-gray-300"
+          className="bg-gray-200 text-gray-700 px-4 py-2 rounded-full hover:bg-gray-300 transition-colors flex items-center gap-2"
         >
-          &larr; Back to Products
+          <span>&larr;</span> Back to Products
         </button>
         <button
           onClick={fetchOrders}
@@ -87,31 +146,76 @@ const CustomerOrdersPage = ({ user, handlers }) => {
       </div>
 
       <div className="bg-white p-6 rounded-lg shadow-md">
-        <h2 className="text-3xl font-bold text-gray-800 mb-4">My Order History</h2>
-        <p className="text-gray-600 mb-6">All your orders are shown here, including current and past orders.</p>
+        <h2 className="text-3xl font-bold text-gray-800 mb-6 border-b pb-2">My Orders</h2>
 
-        {myOrders.length === 0 ? (
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6 border-b">
+            <button
+                onClick={() => setActiveTab('active')}
+                className={`px-4 py-2 font-semibold transition-colors ${activeTab === 'active'
+                        ? 'border-b-2 border-green-600 text-green-600'
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+            >
+                Active Orders ({activeOrders.length})
+            </button>
+            <button
+                onClick={() => setActiveTab('history')}
+                className={`px-4 py-2 font-semibold transition-colors ${activeTab === 'history'
+                        ? 'border-b-2 border-green-600 text-green-600'
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+            >
+                Order History ({historyOrders.length})
+            </button>
+        </div>
+
+        {currentOrders.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            <p className="text-lg">You have no orders yet.</p>
-            <p className="text-sm mt-2">Your orders will appear here once you place them.</p>
+            <p className="text-lg">
+                {activeTab === 'active'
+                    ? 'You have no active orders.'
+                    : 'You have no order history yet.'}
+            </p>
+            <p className="text-sm mt-2">
+                {activeTab === 'active'
+                    ? 'Orders being processed or shipped will appear here.'
+                    : 'Orders you have received will appear here.'}
+            </p>
           </div>
         ) : (
           <div className="space-y-6">
-            {myOrders.map(order => (
+            {currentOrders.map(order => (
               <div key={order._id || order.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="flex justify-between items-center border-b pb-2 mb-2">
                   <div>
                     <p className="font-bold text-lg">Order #{order.orderId || (order._id || order.id || "").slice(-6)}</p>
                     <p className="text-sm text-gray-500">Placed on: {formatDate(order.createdAt)}</p>
                     {order.deliveredAt && (
-                      <p className="text-sm text-green-600">Delivered on: {formatDate(order.deliveredAt)}</p>
+                      <p className="text-sm text-green-600 font-semibold mb-1">✓ Delivered on: {formatDate(order.deliveredAt)}</p>
                     )}
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex flex-col items-end gap-2">
                     <p className="font-bold text-lg">Total: ₹{order.total}</p>
                     <span className={`px-3 py-1 text-sm rounded-full font-semibold ${getStatusColor(order.orderStatus || order.status)}`}>
                       {order.orderStatus || order.status || 'UNKNOWN'}
                     </span>
+                    {(order.orderStatus === 'SHIPPED') && (
+                      <button
+                        onClick={() => handleConfirmReceipt(order._id || order.id)}
+                        className="mt-2 bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition-colors shadow flex gap-1 items-center"
+                      >
+                         Confirm Receipt
+                      </button>
+                    )}
+                    {(order.orderStatus === 'DELIVERED') && (
+                      <button
+                        onClick={() => handleSaveReceipt(order)}
+                        className="mt-2 bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 transition-colors shadow flex gap-1 items-center"
+                      >
+                         📄 Save Receipt
+                      </button>
+                    )}
                   </div>
                 </div>
 

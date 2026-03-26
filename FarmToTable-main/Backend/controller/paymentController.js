@@ -4,10 +4,13 @@ const Order = require("../model/Order");
 const Product = require("../model/Product");
 const Cart = require("../model/Carts");
 
-const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+// Initialize inside functions in case environment variables load late
+const getRazorpayInstance = () => {
+    return new Razorpay({
+        key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_SA9WQ0C0LdYr9x',
+        key_secret: process.env.RAZORPAY_KEY_SECRET || 'zY71amH1RALZOwlFoxlNSKOP',
+    });
+};
 
 // 1. Create Razorpay Order
 exports.createOrder = async (req, res) => {
@@ -18,22 +21,29 @@ exports.createOrder = async (req, res) => {
             currency: "INR",
             receipt: `receipt_${Date.now()}`,
         };
-        const order = await razorpay.orders.create(options);
+        const rzp = getRazorpayInstance();
+        const order = await rzp.orders.create(options);
         res.status(200).json(order);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error("Razorpay Create Order Error:", error);
+        res.status(500).json({ error: error.message || error.description || "Failed to create order" });
     }
 };
 
 // 2. Verify Payment and Save Order
-// Backend/controller/paymentController.js
-// Backend/controller/paymentController.js
-
 exports.verifyPayment = async (req, res) => {
     try {
         const { razorpay_order_id, razorpay_payment_id, razorpay_signature, cartItems, amount } = req.body;
 
-        // ... [Keep your existing Signature Verification code here] ...
+        // Verify Razorpay signature (CRITICAL for security)
+        const body = razorpay_order_id + "|" + razorpay_payment_id;
+        const expectedSignature = crypto
+            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+            .update(body.toString())
+            .digest("hex");
+        if (expectedSignature !== razorpay_signature) {
+            return res.status(400).json({ error: "Payment verification failed: Invalid signature." });
+        }
 
         // Fetch fresh product data from the database to ensure all required fields are present
         const verifiedProducts = await Promise.all(cartItems.map(async (item) => {
@@ -41,29 +51,30 @@ exports.verifyPayment = async (req, res) => {
             if (!product) throw new Error(`Product not found: ${item.name}`);
 
             return {
-                productId: product._id,
+                productId: product._id.toString(),
                 name: product.name,
                 price: product.price,
                 quantity: item.quantity,
                 unit: product.unit,
                 image: product.image,
-                // These two fields are causing your validation error; fetching them here fixes it
                 farmerId: product.farmerId,
                 farmerName: product.farmerName
             };
         }));
 
+        // Generate our internal orderId (Order schema expects unique orderId)
+        const internalOrderId = `ORD_${Date.now()}_${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
         const newOrder = new Order({
+            orderId: internalOrderId,
             customerId: req.user.id,
             customerName: req.user.name,
-            orderedItems: verifiedProducts, // Correct field name per Schema
-            total: amount,
-            status: "Paid",
-            paymentId: razorpay_payment_id,
-            orderId: razorpay_order_id,
-            // Extract farmer details from the first product (assuming single-farmer order or primary farmer)
             farmerId: verifiedProducts[0].farmerId,
-            farmerName: verifiedProducts[0].farmerName
+            farmerName: verifiedProducts[0].farmerName,
+            orderedItems: verifiedProducts,
+            total: amount,
+            orderStatus: "CONFIRMED",
+            paymentId: razorpay_payment_id
         });
 
         await newOrder.save();

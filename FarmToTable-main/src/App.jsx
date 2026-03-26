@@ -101,10 +101,13 @@ export default function App() {
       try {
         const userId = user._id || user.id;
         const productId = product._id || product.id;
+        console.log("Adding to cart:", { userId, productId, product });
         const updatedCart = await CartService.addToCart(userId, productId, 1);
         setCart(updatedCart.items || []);
+        alert("Added to cart successfully!");
       } catch (error) {
         console.error("Add to cart failed", error);
+        alert(`Failed to add to cart: ${error.response?.data?.message || error.message}`);
       }
     },
 
@@ -215,7 +218,7 @@ export default function App() {
     viewFarmerProfile: (farmerId) => handlers.viewFarmer(farmerId),
 
     getNewOrdersCount: (farmerId) =>
-      orders.filter((o) => o.status === "New" && (o.products || []).some((p) => p.farmerId === farmerId)).length,
+      orders.filter((o) => (o.orderStatus || o.status) === "CONFIRMED" && (o.orderedItems || o.products || []).some((p) => p.farmerId === farmerId)).length,
 
     updateOrderStatus: async (orderId, newStatus) => {
       try {

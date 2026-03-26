@@ -44,10 +44,9 @@ const orderSchema = new mongoose.Schema({
     timestamps: true // Automatically manage createdAt and updatedAt
 });
 
-// Add indexes for better query performance
+// Add indexes for better query performance (orderId already has unique index)
 orderSchema.index({ customerId: 1, orderStatus: 1 }); // For customer order filtering
 orderSchema.index({ farmerId: 1, orderStatus: 1 }); // For farmer order filtering
-orderSchema.index({ orderId: 1 }); // Unique order lookup
 orderSchema.index({ orderStatus: 1 }); // For filtering by status
 orderSchema.index({ createdAt: -1 }); // For sorting by date (descending)
 orderSchema.index({ "orderedItems.farmerId": 1 }); // For multi-farmer order queries

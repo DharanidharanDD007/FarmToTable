@@ -92,7 +92,7 @@ export default function CartPage({ user, handlers }) {
 
             // 2. Configure Razorpay Options
             const options = {
-                key: "rzp_test_RzIHGVXzuloE1e",
+                key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_RzIHGVXzuloE1e",
                 amount: orderResponse.amount,
                 currency: "INR",
                 name: "Farm To Table",
@@ -151,12 +151,36 @@ export default function CartPage({ user, handlers }) {
                 }
             };
 
+            if (!window.Razorpay) {
+                // Load script dynamically if not present
+                const loadScript = () => new Promise((resolve) => {
+                    const script = document.createElement('script');
+                    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                    script.onload = () => resolve(true);
+                    script.onerror = () => resolve(false);
+                    document.body.appendChild(script);
+                });
+                
+                const isLoaded = await loadScript();
+                if (!isLoaded) {
+                     alert("Failed to load Razorpay SDK. Please check your connection.");
+                     setProcessingPayment(false);
+                     return;
+                }
+            }
+
             const rzp = new window.Razorpay(options);
+            
+            rzp.on('payment.failed', function (response){
+                alert("Payment Failed: " + response.error.description);
+                setProcessingPayment(false);
+            });
+            
             rzp.open();
 
         } catch (error) {
-            const initErrorMsg = error.response?.data?.error || error.message;
-            console.error("Razorpay Init Error:", initErrorMsg);
+            console.error("Razorpay Init Error Full:", error);
+            const initErrorMsg = error?.response?.data?.error || error?.message || "Unknown error occurred";
             alert("Failed to initiate payment: " + initErrorMsg);
             setProcessingPayment(false);
         }

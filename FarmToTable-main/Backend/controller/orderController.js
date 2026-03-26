@@ -269,6 +269,59 @@ const updateOrderStatus = async (req, res) => {
 
 /**
  * ============================================
+ * CUSTOMER STATUS UPDATES
+ * ============================================
+ */
+const customerReceiveOrder = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const customerId = req.user.id || req.user._id;
+
+        // Only customers can use this specific endpoint
+        if (req.user.role !== 'customer') {
+            return res.status(403).json({ message: "Only customers can confirm delivery." });
+        }
+
+        const order = await Order.findById(id);
+        if (!order) {
+            return res.status(404).json({ message: "Order not found" });
+        }
+
+        // Verify customer owns this order
+        if (String(order.customerId) !== String(customerId)) {
+            return res.status(403).json({ message: "Access denied. Not your order." });
+        }
+
+        // Customer can only confirm receipt if order is SHIPPED
+        if (order.orderStatus !== 'SHIPPED') {
+            return res.status(400).json({ 
+                message: `Cannot confirm delivery. Order is currently ${order.orderStatus}.` 
+            });
+        }
+
+        // Update order status
+        const updatedOrder = await Order.findByIdAndUpdate(
+            id,
+            { 
+                orderStatus: 'DELIVERED',
+                deliveredAt: new Date()
+            },
+            { new: true, runValidators: true }
+        );
+
+        res.status(200).json({
+            success: true,
+            message: "Delivery confirmed successfully.",
+            order: updatedOrder
+        });
+    } catch (err) {
+        console.error("Error confirming delivery:", err);
+        res.status(500).json({ message: err.message });
+    }
+};
+
+/**
+ * ============================================
  * GET ORDER BY ID
  * ============================================
  */
@@ -315,5 +368,6 @@ module.exports = {
     // Common endpoints
     createOrder,
     updateOrderStatus,
+    customerReceiveOrder,
     getOrderById
 };

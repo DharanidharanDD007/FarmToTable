@@ -97,8 +97,12 @@ const OrderRow = ({ order, onUpdateStatus }) => {
                     </select>
                     <button
                         onClick={handleUpdate}
-                        disabled={isUpdating}
-                        className="bg-blue-500 text-white px-4 py-1 rounded text-sm hover:bg-blue-600 transition-colors disabled:bg-gray-400"
+                        disabled={isUpdating || (orderStatus === (order.orderStatus || order.status))}
+                        className={`px-4 py-1 rounded text-sm transition-colors ${
+                            isUpdating || (orderStatus === (order.orderStatus || order.status))
+                                ? 'bg-gray-400 cursor-not-allowed text-white'
+                                : 'bg-blue-500 hover:bg-blue-600 text-white'
+                        }`}
                     >
                         {isUpdating ? 'Updating...' : 'Update'}
                     </button>
@@ -156,7 +160,13 @@ const FarmerOrdersPage = ({ user, handlers }) => {
             await orderApi.updateOrderStatus(orderId, newStatus);
             // Refresh orders after update
             await fetchOrders();
-            alert(`Order status updated to ${newStatus}`);
+            
+            if (newStatus === 'DELIVERED') {
+                setActiveTab('history');
+                alert(`Order marked as Delivered and moved to Order History!`);
+            } else {
+                alert(`Order status updated to ${newStatus}`);
+            }
         } catch (error) {
             console.error('Failed to update order:', error);
             throw error;

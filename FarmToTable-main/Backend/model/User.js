@@ -14,8 +14,7 @@ const userSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
-// Add indexes for better query performance
-userSchema.index({ email: 1 }); // Already unique, but explicit index
+// Add indexes for better query performance (email already has unique index)
 userSchema.index({ role: 1 }); // For filtering by role
 
 const User = mongoose.model("User", userSchema);

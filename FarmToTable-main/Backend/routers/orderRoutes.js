@@ -21,6 +21,9 @@ const router = express.Router();
 // Rule: Customer must see ALL orders regardless of status
 router.get("/customer/my-orders", authMiddleware, orderController.getCustomerOrders);
 
+// Custom route for customers to confirm they received the order
+router.put("/:id/customer-receive", authMiddleware, orderController.customerReceiveOrder);
+
 // ===== FARMER ROUTES =====
 // Get farmer's ACTIVE orders (CONFIRMED, ACCEPTED, SHIPPED)
 router.get("/farmer/active", authMiddleware, isFarmer, orderController.getFarmerActiveOrders);

@@ -12,6 +12,12 @@ export const createOrder = async (orderData) => {
     return response.data;
 };
 
+// Customer confirm receipt of order
+export const customerReceiveOrder = async (orderId) => {
+    const response = await api.put(`/orders/${orderId}/customer-receive`);
+    return response.data;
+};
+
 // Get customer's ALL orders (complete history - all statuses)
 export const getCustomerOrders = async () => {
     const response = await api.get('/orders/customer/my-orders');
