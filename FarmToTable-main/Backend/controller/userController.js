@@ -75,6 +75,7 @@ const login = async (req, res) => {
             user: {
                 id: userId,  // ✅ Added 'id' so other controllers can use req.user.id
                 _id: userId,
+                email: user.email,
                 role: user.role,
                 name: user.name,
                 location: user.farmDetails?.location || ''
@@ -171,6 +172,7 @@ const googleAuth = async (req, res) => {
             user: {
                 id: userId,
                 _id: userId,
+                email: user.email,
                 role: user.role,
                 name: user.name,
                 location: user.farmDetails?.location || ''
@@ -227,9 +229,21 @@ const updateProfile = async (req, res) => {
         const userId = req.user.id || req.user._id;
         const { name, email, location, bio } = req.body;
 
-        const user = await User.findById(userId);
+        console.log("👤 [updateProfile] Request details:", {
+            extractedUserId: userId,
+            reqUserPayload: req.user,
+            requestBody: req.body
+        });
+
+        let user = await User.findById(userId);
+        if (!user && req.user && req.user.email) {
+            console.log(`🔍 [updateProfile] User not found by ID. Attempting lookup by email: ${req.user.email}`);
+            user = await User.findOne({ email: req.user.email.toLowerCase() });
+        }
+
         if (!user) {
-            return res.status(404).json({ message: "User not found." });
+            console.error("❌ [updateProfile] User not found in database. Token may be stale or database context changed.");
+            return res.status(404).json({ message: "User not found. Please log out and log in again to sync your account." });
         }
 
         if (name) user.name = name;
@@ -256,11 +270,13 @@ const updateProfile = async (req, res) => {
         }
 
         await user.save();
+        console.log("✅ [updateProfile] Profile updated successfully for user ID:", user._id);
 
         const tokenPayload = {
             user: {
                 id: user._id.toString(),
                 _id: user._id.toString(),
+                email: user.email,
                 role: user.role,
                 name: user.name,
                 location: user.farmDetails?.location || ''
@@ -286,6 +302,7 @@ const updateProfile = async (req, res) => {
             }
         });
     } catch (err) {
+        console.error("❌ [updateProfile] Server error:", err);
         res.status(500).json({ message: "Profile update server error: " + err.message });
     }
 };

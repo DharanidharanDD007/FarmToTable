@@ -1,5 +1,13 @@
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
+const dns = require("dns");
+
+// Set DNS servers to Google Public DNS to resolve SRV record lookup failures on Windows
+try {
+  dns.setServers(["8.8.8.8", "8.8.4.4"]);
+} catch (dnsErr) {
+  console.warn("⚠️ Failed to set DNS servers:", dnsErr.message);
+}
 
 dotenv.config();
 

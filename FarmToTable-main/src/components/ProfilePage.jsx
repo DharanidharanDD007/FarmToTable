@@ -63,7 +63,7 @@ const ProfilePage = ({ user, handlers }) => {
                     )}
 
                     <button
-                        onClick={() => handlers.navigateTo(user.role === 'farmer' ? 'farmerDashboard' : 'products')}
+                        onClick={() => handlers.navigateTo(user.role === 'farmer' ? 'farmerDashboard' : 'home')}
                         className="mt-8 w-full bg-gray-600 text-white py-2 rounded-lg hover:bg-gray-700"
                     >
                         Back
