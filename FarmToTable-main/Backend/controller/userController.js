@@ -221,5 +221,74 @@ const getCustomers = async (req, res) => {
     }
 };
 
+// Update User Profile
+const updateProfile = async (req, res) => {
+    try {
+        const userId = req.user.id || req.user._id;
+        const { name, email, location, bio } = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: "User not found." });
+        }
+
+        if (name) user.name = name;
+        if (email) {
+            const lowerEmail = email.toLowerCase();
+            if (lowerEmail !== user.email) {
+                const emailExists = await User.findOne({ email: lowerEmail });
+                if (emailExists) {
+                    return res.status(400).json({ message: "Email is already in use by another account." });
+                }
+                user.email = lowerEmail;
+            }
+        }
+
+        if (user.role === 'farmer') {
+            if (!user.farmDetails) {
+                user.farmDetails = { name: '', location: '', bio: '' };
+            }
+            if (location !== undefined) user.farmDetails.location = location;
+            if (bio !== undefined) user.farmDetails.bio = bio;
+            if (!user.farmDetails.name) {
+                user.farmDetails.name = `${user.name}'s Farm`;
+            }
+        }
+
+        await user.save();
+
+        const tokenPayload = {
+            user: {
+                id: user._id.toString(),
+                _id: user._id.toString(),
+                role: user.role,
+                name: user.name,
+                location: user.farmDetails?.location || ''
+            }
+        };
+
+        const token = jwt.sign(
+            tokenPayload,
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        res.status(200).json({
+            message: "Profile updated successfully",
+            token,
+            user: {
+                id: user._id.toString(),
+                _id: user._id.toString(),
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                farmDetails: user.farmDetails
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ message: "Profile update server error: " + err.message });
+    }
+};
+
 // ✅ CRITICAL: Ensure all functions are exported in this object
-module.exports = { signup, login, googleAuth, getFarmers, getCustomers };
+module.exports = { signup, login, googleAuth, getFarmers, getCustomers, updateProfile };

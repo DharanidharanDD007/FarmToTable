@@ -2,6 +2,7 @@
 
 const express = require("express");
 const userController = require("../controller/userController.js");
+const { authMiddleware } = require("../middleware/authMiddleware.js");
 
 const router = express.Router();
 
@@ -14,5 +15,7 @@ router.post("/google-auth", userController.googleAuth);
 router.get("/farmers", userController.getFarmers);
 router.get("/customers", userController.getCustomers);
 
+// Profile routes
+router.put("/profile", authMiddleware, userController.updateProfile);
 
 module.exports = router;

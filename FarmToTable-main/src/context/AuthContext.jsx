@@ -93,8 +93,26 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('currentUser');
     };
 
+    const updateProfile = async (name, email, location, bio) => {
+        setError(null);
+        try {
+            const data = await authApi.updateProfile({ name, email, location, bio });
+            const storageData = {
+                user: data.user,
+                token: data.token
+            };
+            setUser(data.user);
+            localStorage.setItem('currentUser', JSON.stringify(storageData));
+            return { success: true };
+        } catch (err) {
+            const msg = err.response?.data?.message || "Profile update failed";
+            setError(msg);
+            return { success: false, message: msg };
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ user, login, signup, googleLogin, logout, loading, error }}>
+        <AuthContext.Provider value={{ user, login, signup, googleLogin, logout, updateProfile, loading, error }}>
             {!loading && children}
         </AuthContext.Provider>
 

@@ -26,7 +26,7 @@ import { CartService } from "./services/CartService";
 
 export default function App() {
   // Global State (User is now in Context)
-  const { user } = useAuth(); //
+  const { user, updateProfile: apiUpdateProfile } = useAuth();
 
   // Data State
   const [products, setProducts] = useState([]);
@@ -203,10 +203,17 @@ export default function App() {
 
     cancelDelete: () => setProductToDelete(null),
 
-    updateProfile: (name, email, location, bio) => {
-      // Logic should ideally move to ProfilePage or UserContext, 
-      // kept here for now as requested to fix Prop Drilling mainly for Auth
-      alert("Profile update logic needs backend integration.");
+    updateProfile: async (name, email, location, bio) => {
+      try {
+        const result = await apiUpdateProfile(name, email, location, bio);
+        if (result.success) {
+          alert("Profile updated successfully!");
+        } else {
+          alert("Failed to update profile: " + result.message);
+        }
+      } catch (error) {
+        alert("An unexpected error occurred while updating profile.");
+      }
     },
 
     viewFarmer: (farmerId) => {
