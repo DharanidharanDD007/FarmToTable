@@ -2,6 +2,8 @@ const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
+const cluster = require("cluster");
+const os = require("os");
 
 // Config - Load env vars FIRST
 dotenv.config();
@@ -22,6 +24,8 @@ const orderRoutes = require("./routers/orderRoutes.js");
 const productRoutes = require("./routers/productRoutes.js");
 const userRoutes = require("./routers/userRoutes.js");
 const paymentRoutes = require("./routers/paymentRoutes.js");
+const reviewRoutes = require("./routers/reviewRoutes.js");
+const aiRoutes = require("./routers/aiRoutes.js");
 
 // DB connection
 const connectDB = require("./config/db.js");
@@ -55,9 +59,6 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Connect to MongoDB
-connectDB();
-
 // -------------------------------
 // API Routes
 // -------------------------------
@@ -66,6 +67,9 @@ app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/reviews", reviewRoutes);
+app.use("/api/ai", aiRoutes);
+
 
 // Global Error Handler
 app.use((err, req, res, next) => {
@@ -74,11 +78,30 @@ app.use((err, req, res, next) => {
 });
 
 // -------------------------------
-// Start server
 // -------------------------------
-// ✅ FIX: Define PORT before using it
+// Start server (with Clustering support)
+// -------------------------------
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on PORT: ${PORT}`);
-});
+if (process.env.CLUSTER_MODE === "true" && (cluster.isPrimary || cluster.isMaster)) {
+  const numCPUs = os.cpus().length;
+  console.log(`🚀 Primary process ${process.pid} is running. Forking ${numCPUs} workers for load balancing...`);
+  
+  for (let i = 0; i < numCPUs; i++) {
+    cluster.fork();
+  }
+
+  cluster.on("exit", (worker, code, signal) => {
+    console.warn(`⚠️ Worker process ${worker.process.pid} exited. Forking a replacement worker...`);
+    cluster.fork();
+  });
+} else {
+  // Boot worker process - establish DB connection and listen
+  connectDB().then(() => {
+    app.listen(PORT, () => {
+      console.log(`✅ Worker process ${process.pid} started. Server listening on PORT: ${PORT}`);
+    });
+  }).catch((err) => {
+    console.error("❌ Worker failed to start because database connection failed:", err.message);
+  });
+}

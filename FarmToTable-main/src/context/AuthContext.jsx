@@ -58,15 +58,46 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const googleLogin = async (payload) => {
+        setError(null);
+        try {
+            const data = await authApi.googleLogin(payload);
+            
+            // Handle new user role selection redirect
+            if (data.registrationRequired) {
+                return { 
+                    success: true, 
+                    registrationRequired: true, 
+                    email: data.email, 
+                    name: data.name 
+                };
+            }
+
+            const storageData = {
+                user: data.user,
+                token: data.token
+            };
+            
+            setUser(data.user);
+            localStorage.setItem('currentUser', JSON.stringify(storageData));
+            return { success: true };
+        } catch (err) {
+            const msg = err.response?.data?.message || "Google authentication failed";
+            setError(msg);
+            return { success: false, message: msg };
+        }
+    };
+
     const logout = () => {
         setUser(null);
         localStorage.removeItem('currentUser');
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, signup, logout, loading, error }}>
+        <AuthContext.Provider value={{ user, login, signup, googleLogin, logout, loading, error }}>
             {!loading && children}
         </AuthContext.Provider>
+
     );
 };
 

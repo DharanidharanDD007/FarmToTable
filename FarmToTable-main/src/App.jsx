@@ -21,6 +21,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import callGeminiAPI from "./api/gemini";
 import * as productApi from "./api/products";
 import * as orderApi from "./api/orders";
+import * as userApi from "./api/users";
 import { CartService } from "./services/CartService";
 
 export default function App() {
@@ -47,6 +48,13 @@ export default function App() {
     try {
       const allProducts = await productApi.getAllProducts();
       setProducts(allProducts);
+
+      try {
+        const allFarmers = await userApi.getFarmers();
+        setUsers(Array.isArray(allFarmers) ? allFarmers : []);
+      } catch (err) {
+        console.error("Failed to load farmers list:", err);
+      }
 
       // Only fetch user-specific data if user is logged in
       if (user) {
@@ -268,7 +276,7 @@ export default function App() {
   };
 
   return (
-    <div className="bg-gray-50 min-h-screen font-sans" >
+    <div className="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen font-sans transition-colors duration-300" >
       {/* Header accesses user/logout via Context internally if refactored, or we pass user from Context here */}
       < Header cart={cart} handlers={handlers} user={user} newOrdersCount={user?.role === 'farmer' ? handlers.getNewOrdersCount(user._id || user.id) : 0} />
 

@@ -10,8 +10,8 @@ const rateLimit = async (req, res, next) => {
     }
     next();
   } catch (error) {
-    console.error("Rate limit error:", error);
-    next(error);
+    console.error("Rate limit error (bypassing for stability):", error.message || error);
+    next(); // Fail open in local development or if Redis is down
   }
 };
 

@@ -105,6 +105,102 @@ const login = async (req, res) => {
     }
 };
 
+// Google Auth (Login & Signup Integration)
+const googleAuth = async (req, res) => {
+    try {
+        const { credential, role, farmDetails } = req.body;
+
+        if (!credential) {
+            return res.status(400).json({ message: "Google credential token is required." });
+        }
+
+        // Verify the ID Token with Google API using native fetch (Node 18+)
+        const verifyUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`;
+        const verifyRes = await fetch(verifyUrl);
+        
+        if (!verifyRes.ok) {
+            return res.status(400).json({ message: "Invalid Google credential token." });
+        }
+
+        const payload = await verifyRes.json();
+        
+        if (!payload.email_verified) {
+            return res.status(400).json({ message: "Google email is not verified." });
+        }
+
+        const email = payload.email.toLowerCase();
+        const name = payload.name || payload.given_name;
+
+        // Find existing user
+        let user = await User.findOne({ email });
+
+        if (!user) {
+            // New user registration flow
+            if (!role) {
+                // Return flag to the frontend to prompt for role selection
+                return res.status(200).json({
+                    registrationRequired: true,
+                    email,
+                    name,
+                    message: "Please specify a role to complete your registration."
+                });
+            }
+
+            // Create user
+            // Schema has password as required: true. We generate a secure random password.
+            const salt = await bcrypt.genSalt(10);
+            const randomPassword = require("crypto").randomBytes(16).toString("hex");
+            const hashedPassword = await bcrypt.hash(randomPassword, salt);
+
+            user = new User({
+                name,
+                email,
+                password: hashedPassword,
+                role,
+                farmDetails: role === 'farmer' ? farmDetails : undefined
+            });
+
+            await user.save();
+        }
+
+        // Standardize ID
+        const userId = user._id.toString();
+
+        // Create Token Payload
+        const tokenPayload = {
+            user: {
+                id: userId,
+                _id: userId,
+                role: user.role,
+                name: user.name,
+                location: user.farmDetails?.location || ''
+            }
+        };
+
+        const token = jwt.sign(
+            tokenPayload,
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        res.status(200).json({
+            message: "Authenticated successfully with Google",
+            token,
+            user: {
+                id: userId,
+                _id: userId,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                farmDetails: user.farmDetails
+            }
+        });
+
+    } catch (err) {
+        res.status(500).json({ message: "Google auth server error: " + err.message });
+    }
+};
+
 // Get Farmers
 const getFarmers = async (req, res) => {
     try {
@@ -126,4 +222,4 @@ const getCustomers = async (req, res) => {
 };
 
 // ✅ CRITICAL: Ensure all functions are exported in this object
-module.exports = { signup, login, getFarmers, getCustomers };
+module.exports = { signup, login, googleAuth, getFarmers, getCustomers };
